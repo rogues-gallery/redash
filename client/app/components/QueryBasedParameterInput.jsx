@@ -1,9 +1,7 @@
 import { find, isArray, get, first, map, intersection, isEqual, isEmpty } from "lodash";
 import React from "react";
 import PropTypes from "prop-types";
-import Select from "antd/lib/select";
-
-const { Option } = Select;
+import SelectWithVirtualScroll from "@/components/SelectWithVirtualScroll";
 
 export default class QueryBasedParameterInput extends React.Component {
   static propTypes = {
@@ -50,12 +48,12 @@ export default class QueryBasedParameterInput extends React.Component {
     const { options } = this.state;
     if (this.props.mode === "multiple") {
       value = isArray(value) ? value : [value];
-      const optionValues = map(options, option => option.value);
+      const optionValues = map(options, (option) => option.value);
       const validValues = intersection(value, optionValues);
       this.setState({ value: validValues });
       return validValues;
     }
-    const found = find(options, option => option.value === this.props.value) !== undefined;
+    const found = find(options, (option) => option.value === this.props.value) !== undefined;
     value = found ? value : get(first(options), "value");
     this.setState({ value });
     return value;
@@ -79,29 +77,23 @@ export default class QueryBasedParameterInput extends React.Component {
   }
 
   render() {
-    const { className, value, mode, onSelect, ...otherProps } = this.props;
+    const { className, mode, onSelect, queryId, value, ...otherProps } = this.props;
     const { loading, options } = this.state;
     return (
       <span>
-        <Select
+        <SelectWithVirtualScroll
           className={className}
           disabled={loading}
           loading={loading}
           mode={mode}
           value={this.state.value}
           onChange={onSelect}
-          dropdownMatchSelectWidth={false}
-          optionFilterProp="children"
+          options={map(options, ({ value, name }) => ({ label: String(name), value }))}
           showSearch
           showArrow
           notFoundContent={isEmpty(options) ? "No options available" : null}
-          {...otherProps}>
-          {options.map(option => (
-            <Option value={option.value} key={option.value}>
-              {option.name}
-            </Option>
-          ))}
-        </Select>
+          {...otherProps}
+        />
       </span>
     );
   }

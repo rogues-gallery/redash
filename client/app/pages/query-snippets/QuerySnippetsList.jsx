@@ -15,6 +15,7 @@ import { StateStorage } from "@/components/items-list/classes/StateStorage";
 import LoadingState from "@/components/items-list/components/LoadingState";
 import ItemsTable, { Columns } from "@/components/items-list/components/ItemsTable";
 import wrapSettingsTab from "@/components/SettingsWrapper";
+import PlainButton from "@/components/PlainButton";
 
 import QuerySnippet from "@/services/query-snippet";
 import { currentUser } from "@/services/auth";
@@ -24,7 +25,7 @@ import routes from "@/services/routes";
 
 import "./QuerySnippetsList.less";
 
-const canEditQuerySnippet = querySnippet => currentUser.isAdmin || currentUser.id === get(querySnippet, "user.id");
+const canEditQuerySnippet = (querySnippet) => currentUser.isAdmin || currentUser.id === get(querySnippet, "user.id");
 
 class QuerySnippetsList extends React.Component {
   static propTypes = {
@@ -34,11 +35,9 @@ class QuerySnippetsList extends React.Component {
   listColumns = [
     Columns.custom.sortable(
       (text, querySnippet) => (
-        <div>
-          <a className="table-main-title clickable" onClick={() => this.showSnippetDialog(querySnippet)}>
-            {querySnippet.trigger}
-          </a>
-        </div>
+        <PlainButton type="link" className="table-main-title" onClick={() => this.showSnippetDialog(querySnippet)}>
+          {querySnippet.trigger}
+        </PlainButton>
       ),
       {
         title: "Trigger",
@@ -46,16 +45,16 @@ class QuerySnippetsList extends React.Component {
         className: "text-nowrap",
       }
     ),
-    Columns.custom.sortable(text => text, {
+    Columns.custom.sortable((text) => text, {
       title: "Description",
       field: "description",
       className: "text-nowrap",
     }),
-    Columns.custom(snippet => <code className="snippet-content">{snippet}</code>, {
+    Columns.custom((snippet) => <code className="snippet-content">{snippet}</code>, {
       title: "Snippet",
       field: "snippet",
     }),
-    Columns.avatar({ field: "user", className: "p-l-0 p-r-0" }, name => `Created by ${name}`),
+    Columns.avatar({ field: "user", className: "p-l-0 p-r-0" }, (name) => `Created by ${name}`),
     Columns.date.sortable({
       title: "Created At",
       field: "created_at",
@@ -65,7 +64,7 @@ class QuerySnippetsList extends React.Component {
     Columns.custom(
       (text, querySnippet) =>
         canEditQuerySnippet(querySnippet) && (
-          <Button type="danger" className="w-100" onClick={e => this.deleteQuerySnippet(e, querySnippet)}>
+          <Button type="danger" className="w-100" onClick={(e) => this.deleteQuerySnippet(e, querySnippet)}>
             Delete
           </Button>
         ),
@@ -88,14 +87,14 @@ class QuerySnippetsList extends React.Component {
       } else {
         QuerySnippet.get({ id: querySnippetId })
           .then(this.showSnippetDialog)
-          .catch(error => {
+          .catch((error) => {
             this.props.controller.handleError(error);
           });
       }
     }
   }
 
-  saveQuerySnippet = querySnippet => {
+  saveQuerySnippet = (querySnippet) => {
     const saveSnippet = querySnippet.id ? QuerySnippet.save : QuerySnippet.create;
     return saveSnippet(querySnippet);
   };
@@ -128,7 +127,7 @@ class QuerySnippetsList extends React.Component {
       querySnippet,
       readOnly: !canSave,
     })
-      .onClose(querySnippet =>
+      .onClose((querySnippet) =>
         this.saveQuerySnippet(querySnippet).then(() => {
           this.props.controller.update();
           goToSnippetsList();
@@ -146,8 +145,9 @@ class QuerySnippetsList extends React.Component {
           <Button
             type="primary"
             onClick={() => this.showSnippetDialog()}
-            disabled={!policy.isCreateQuerySnippetEnabled()}>
-            <i className="fa fa-plus m-r-5" />
+            disabled={!policy.isCreateQuerySnippetEnabled()}
+          >
+            <i className="fa fa-plus m-r-5" aria-hidden="true" />
             New Query Snippet
           </Button>
         </div>
@@ -158,16 +158,16 @@ class QuerySnippetsList extends React.Component {
             There are no query snippets yet.
             {policy.isCreateQuerySnippetEnabled() && (
               <div className="m-t-5">
-                <a className="clickable" onClick={() => this.showSnippetDialog()}>
+                <PlainButton type="link" onClick={() => this.showSnippetDialog()}>
                   Click here
-                </a>{" "}
+                </PlainButton>{" "}
                 to add one.
               </div>
             )}
           </div>
         )}
         {controller.isLoaded && !controller.isEmpty && (
-          <div className="table-responsive">
+          <div className="table-responsive query-snippets-table">
             <ItemsTable
               items={controller.pageItems}
               columns={this.listColumns}
@@ -177,10 +177,12 @@ class QuerySnippetsList extends React.Component {
               toggleSorting={controller.toggleSorting}
             />
             <Paginator
+              showPageSizeSelect
               totalCount={controller.totalItemsCount}
-              itemsPerPage={controller.itemsPerPage}
+              pageSize={controller.itemsPerPage}
+              onPageSizeChange={(itemsPerPage) => controller.updatePagination({ itemsPerPage })}
               page={controller.page}
-              onChange={page => controller.updatePagination({ page })}
+              onChange={(page) => controller.updatePagination({ page })}
             />
           </div>
         )}
@@ -218,7 +220,7 @@ routes.register(
   routeWithUserSession({
     path: "/query_snippets",
     title: "Query Snippets",
-    render: pageProps => <QuerySnippetsListPage {...pageProps} currentPage="query_snippets" />,
+    render: (pageProps) => <QuerySnippetsListPage {...pageProps} currentPage="query_snippets" />,
   })
 );
 routes.register(
@@ -226,6 +228,6 @@ routes.register(
   routeWithUserSession({
     path: "/query_snippets/:querySnippetId",
     title: "Query Snippets",
-    render: pageProps => <QuerySnippetsListPage {...pageProps} currentPage="query_snippets" isNewOrEditPage />,
+    render: (pageProps) => <QuerySnippetsListPage {...pageProps} currentPage="query_snippets" isNewOrEditPage />,
   })
 );

@@ -3,19 +3,42 @@
 const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const WebpackBuildNotifierPlugin = require("webpack-build-notifier");
-const ManifestPlugin = require("webpack-manifest-plugin");
+const { WebpackManifestPlugin } = require("webpack-manifest-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const LessPluginAutoPrefix = require("less-plugin-autoprefix");
 const BundleAnalyzerPlugin = require("webpack-bundle-analyzer")
   .BundleAnalyzerPlugin;
-const fs = require("fs");
+const ReactRefreshWebpackPlugin = require("@pmmmwh/react-refresh-webpack-plugin");
+const ESLintPlugin = require("eslint-webpack-plugin");
 
 const path = require("path");
 
-const isProduction = process.env.NODE_ENV === "production";
+function optionalRequire(module, defaultReturn = undefined) {
+  try {
+    require.resolve(module);
+  } catch (e) {
+    if (e && e.code === "MODULE_NOT_FOUND") {
+      // Module was not found, return default value if any
+      return defaultReturn;
+    }
+    throw e;
+  }
+  return require(module);
+}
 
-const redashBackend = process.env.REDASH_BACKEND || "http://localhost:5000";
+// Load optionally configuration object (see scripts/README)
+const CONFIG = optionalRequire("./scripts/config", {});
+
+const isProduction = process.env.NODE_ENV === "production";
+const isDevelopment = !isProduction;
+const isHotReloadingEnabled =
+  isDevelopment && process.env.HOT_RELOAD === "true";
+
+const redashBackend = process.env.REDASH_BACKEND || "http://localhost:5001";
+const baseHref = CONFIG.baseHref || "/";
+const staticPath = CONFIG.staticPath || "/static/";
+const htmlTitle = CONFIG.title || "Redash";
 
 const basePath = path.join(__dirname, "client");
 const appPath = path.join(__dirname, "client", "app");
@@ -23,6 +46,20 @@ const appPath = path.join(__dirname, "client", "app");
 const extensionsRelativePath =
   process.env.EXTENSIONS_DIRECTORY || path.join("client", "app", "extensions");
 const extensionPath = path.join(__dirname, extensionsRelativePath);
+
+// Function to apply configuration overrides (see scripts/README)
+function maybeApplyOverrides(config) {
+  const overridesLocation =
+    process.env.REDASH_WEBPACK_OVERRIDES || "./scripts/webpack/overrides";
+  const applyOverrides = optionalRequire(overridesLocation);
+  if (!applyOverrides) {
+    return config;
+  }
+  console.info("Custom overrides found. Applying them...");
+  const newConfig = applyOverrides(config);
+  console.info("Custom overrides applied successfully.");
+  return newConfig;
+}
 
 const config = {
   mode: isProduction ? "production" : "development",
@@ -37,14 +74,24 @@ const config = {
   output: {
     path: path.join(basePath, "./dist"),
     filename: isProduction ? "[name].[chunkhash].js" : "[name].js",
-    publicPath: "/static/"
+    publicPath: staticPath
+  },
+  node: {
   },
   resolve: {
-    symlinks: false,
+    symlinks: true,
     extensions: [".js", ".jsx", ".ts", ".tsx"],
     alias: {
       "@": appPath,
       extensions: extensionPath
+    },
+    fallback: {
+      fs: false,
+      url: require.resolve("url/"),
+      stream: require.resolve("stream-browserify"),
+      assert: require.resolve("assert/"),
+      util: require.resolve("util/"),
+      process: require.resolve("process/browser"),
     }
   },
   plugins: [
@@ -55,28 +102,48 @@ const config = {
       template: "./client/app/index.html",
       filename: "index.html",
       excludeChunks: ["server"],
-      release: process.env.BUILD_VERSION || "dev"
+      release: process.env.BUILD_VERSION || "dev",
+      staticPath,
+      baseHref,
+      title: htmlTitle
     }),
     new HtmlWebpackPlugin({
       template: "./client/app/multi_org.html",
       filename: "multi_org.html",
       excludeChunks: ["server"]
     }),
-    new MiniCssExtractPlugin({
-      filename: "[name].[chunkhash].css"
-    }),
-    new ManifestPlugin({
+    isProduction &&
+      new MiniCssExtractPlugin({
+        filename: "[name].[chunkhash].css"
+      }),
+    new WebpackManifestPlugin({
       fileName: "asset-manifest.json",
       publicPath: ""
     }),
-    new CopyWebpackPlugin([
-      { from: "client/app/assets/robots.txt" },
-      { from: "client/app/unsupported.html" },
-      { from: "client/app/unsupportedRedirect.js" },
-      { from: "client/app/assets/css/*.css", to: "styles/", flatten: true },
-      { from: "client/app/assets/fonts", to: "fonts/" }
-    ])
-  ],
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: "client/app/assets/robots.txt" },
+        { from: "client/app/unsupported.html" },
+        { from: "client/app/unsupportedRedirect.js" },
+        { from: "client/app/assets/css/*.css", to: "styles/[name][ext]" },
+        { from: "client/app/assets/fonts", to: "fonts/" }
+      ],
+    }),
+    isHotReloadingEnabled && new ReactRefreshWebpackPlugin({ overlay: false }),
+    !isProduction &&
+      new ESLintPlugin({
+        extensions: ["js", "jsx", "ts", "tsx"],
+        context: path.resolve(__dirname, "client"),
+        eslintPath: require.resolve("eslint"),
+        failOnError: false,
+      }),
+    new webpack.ProvidePlugin({
+      // Make a global `process` variable that points to the `process` package,
+      // because the `util` package expects there to be a global variable named `process`.
+      // Thanks to https://stackoverflow.com/a/65018686/14239942
+      process: 'process/browser'
+    })
+  ].filter(Boolean),
   optimization: {
     splitChunks: {
       chunks: chunk => {
@@ -87,30 +154,43 @@ const config = {
   module: {
     rules: [
       {
+        test: /\.js$/,
+        enforce: "pre",
+        use: ["source-map-loader"],
+        resolve: {
+          fullySpecified: false
+        },
+        exclude: [
+          /node_modules\/@plotly\/mapbox-gl/,
+        ],
+      },
+      {
         test: /\.(t|j)sx?$/,
         exclude: /node_modules/,
-        use: ["babel-loader", "eslint-loader"]
+        use: [
+          {
+            loader: require.resolve("babel-loader"),
+            options: {
+              plugins: [
+                isHotReloadingEnabled && require.resolve("react-refresh/babel")
+              ].filter(Boolean)
+            }
+          }
+        ]
       },
       {
         test: /\.html$/,
         exclude: [/node_modules/, /index\.html/, /multi_org\.html/],
-        use: [
-          {
-            loader: "raw-loader"
-          }
-        ]
+        type: "asset/source"
       },
       {
         test: /\.css$/,
         use: [
           {
-            loader: MiniCssExtractPlugin.loader
+            loader: isProduction ? MiniCssExtractPlugin.loader : "style-loader"
           },
           {
-            loader: "css-loader",
-            options: {
-              minimize: process.env.NODE_ENV === "production"
-            }
+            loader: "css-loader"
           }
         ]
       },
@@ -118,66 +198,62 @@ const config = {
         test: /\.less$/,
         use: [
           {
-            loader: MiniCssExtractPlugin.loader
+            loader: isProduction ? MiniCssExtractPlugin.loader : "style-loader"
           },
           {
-            loader: "css-loader",
-            options: {
-              minimize: process.env.NODE_ENV === "production"
-            }
+            loader: "css-loader"
           },
           {
             loader: "less-loader",
             options: {
-              plugins: [
-                new LessPluginAutoPrefix({ browsers: ["last 3 versions"] })
-              ],
-              javascriptEnabled: true
+              sourceMap: false,
+              lessOptions: {
+                plugins: [
+                  new LessPluginAutoPrefix({ browsers: ["last 3 versions"] })
+                ],
+                javascriptEnabled: true
+              }
             }
           }
         ]
       },
       {
         test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
-        use: [
-          {
-            loader: "file-loader",
-            options: {
-              context: path.resolve(appPath, "./assets/images/"),
-              outputPath: "images/",
-              name: "[path][name].[ext]"
-            }
+        type: "asset/resource",
+        generator: {
+          filename: (pathData) => {
+            const filePath = pathData.filename || "";
+            // Strip source prefix so assets/images/db-logos/foo.png → db-logos/foo.png
+            const m = filePath.match(/assets\/images\/(.*)/);
+            if (m) return `images/${m[1]}`;
+            // For images from node_modules or elsewhere, flatten to avoid deep paths
+            const parts = filePath.split("/");
+            return `images/${parts[parts.length - 1]}`;
           }
-        ]
+        }
       },
       {
         test: /\.geo\.json$/,
-        type: "javascript/auto",
-        use: [
-          {
-            loader: "file-loader",
-            options: {
-              outputPath: "data/",
-              name: "[hash:7].[name].[ext]"
-            }
-          }
-        ]
+        type: "asset/resource",
+        generator: {
+          filename: "data/[hash:7].[name][ext]"
+        }
       },
       {
         test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
-        use: [
-          {
-            loader: "url-loader",
-            options: {
-              limit: 10000,
-              name: "fonts/[name].[hash:7].[ext]"
-            }
+        type: "asset",
+        parser: {
+          dataUrlCondition: {
+            maxSize: 10000
           }
-        ]
+        },
+        generator: {
+          filename: "fonts/[name].[hash:7][ext]"
+        }
       }
     ]
   },
-  devtool: isProduction ? "source-map" : "cheap-eval-module-source-map",
+  devtool: isProduction ? "source-map" : "eval-cheap-module-source-map",
   stats: {
     children: false,
     modules: false,
@@ -187,14 +263,18 @@ const config = {
     ignored: /\.sw.$/
   },
   devServer: {
-    inline: true,
-    index: "/static/index.html",
+    devMiddleware: {
+      index: "/static/index.html",
+      publicPath: staticPath,
+      stats: {
+        modules: false,
+        chunkModules: false
+      },
+    },
     historyApiFallback: {
       index: "/static/index.html",
       rewrites: [{ from: /./, to: "/static/index.html" }]
     },
-    contentBase: false,
-    publicPath: "/static/",
     proxy: [
       {
         context: [
@@ -220,10 +300,7 @@ const config = {
         secure: false
       }
     ],
-    stats: {
-      modules: false,
-      chunkModules: false
-    }
+    hot: isHotReloadingEnabled
   },
   performance: {
     hints: false
@@ -238,4 +315,4 @@ if (process.env.BUNDLE_ANALYZER) {
   config.plugins.push(new BundleAnalyzerPlugin());
 }
 
-module.exports = config;
+module.exports = maybeApplyOverrides(config);

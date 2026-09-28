@@ -2,6 +2,8 @@ import { without, find, includes, map, toLower } from "lodash";
 import React from "react";
 import PropTypes from "prop-types";
 
+import Link from "@/components/Link";
+import Button from "antd/lib/button";
 import SelectItemsDialog from "@/components/SelectItemsDialog";
 import { Destination as DestinationType, UserProfile as UserType } from "@/components/proptypes";
 
@@ -11,11 +13,11 @@ import { clientConfig, currentUser } from "@/services/auth";
 import notification from "@/services/notification";
 import ListItemAddon from "@/components/groups/ListItemAddon";
 import EmailSettingsWarning from "@/components/EmailSettingsWarning";
+import PlainButton from "@/components/PlainButton";
+import Tooltip from "@/components/Tooltip";
 
-import Icon from "antd/lib/icon";
-import Tooltip from "antd/lib/tooltip";
+import CloseOutlinedIcon from "@ant-design/icons/CloseOutlined";
 import Switch from "antd/lib/switch";
-import Button from "antd/lib/button";
 
 import "./AlertDestinations.less";
 
@@ -45,7 +47,10 @@ function ListItem({ destination: { name, type }, user, unsubscribe }) {
       )}
       {canUnsubscribe && (
         <Tooltip title="Remove" mouseEnterDelay={0.5}>
-          <Icon type="close" className="remove-button" onClick={unsubscribe} />
+          <PlainButton className="remove-button" onClick={unsubscribe}>
+            {/* TODO: lacks visual feedback */}
+            <CloseOutlinedIcon />
+          </PlainButton>
         </Tooltip>
       )}
     </li>
@@ -60,7 +65,7 @@ ListItem.propTypes = {
 
 export default class AlertDestinations extends React.Component {
   static propTypes = {
-    alertId: PropTypes.number.isRequired,
+    alertId: PropTypes.any.isRequired,
   };
 
   state = {
@@ -87,22 +92,22 @@ export default class AlertDestinations extends React.Component {
       showCount: true,
       extraFooterContent: (
         <>
-          <i className="fa fa-info-circle" /> Create new destinations in{" "}
+          <i className="fa fa-info-circle" aria-hidden="true" /> Create new destinations in{" "}
           <Tooltip title="Opens page in a new tab.">
-            <a href="destinations/new" target="_blank">
+            <Link href="destinations/new" target="_blank">
               Alert Destinations
-            </a>
+            </Link>
           </Tooltip>
         </>
       ),
       dialogTitle: "Add Existing Alert Destinations",
       inputPlaceholder: "Search destinations...",
-      searchItems: searchTerm => {
+      searchItems: (searchTerm) => {
         searchTerm = toLower(searchTerm);
-        return Promise.resolve(dests.filter(d => includes(toLower(d.name), searchTerm)));
+        return Promise.resolve(dests.filter((d) => includes(toLower(d.name), searchTerm)));
       },
       renderItem: (item, { isSelected }) => {
-        const alreadyInGroup = !!find(subs, s => s.destination.id === item.id);
+        const alreadyInGroup = !!find(subs, (s) => s.destination.id === item.id);
 
         return {
           content: (
@@ -116,8 +121,8 @@ export default class AlertDestinations extends React.Component {
           className: isSelected || alreadyInGroup ? "selected" : "",
         };
       },
-    }).onClose(items => {
-      const promises = map(items, item => this.subscribe(item));
+    }).onClose((items) => {
+      const promises = map(items, (item) => this.subscribe(item));
       return Promise.all(promises)
         .then(() => {
           notification.success("Subscribed.");
@@ -129,7 +134,7 @@ export default class AlertDestinations extends React.Component {
     });
   };
 
-  onUserEmailToggle = sub => {
+  onUserEmailToggle = (sub) => {
     if (sub) {
       this.unsubscribe(sub);
     } else {
@@ -137,7 +142,7 @@ export default class AlertDestinations extends React.Component {
     }
   };
 
-  subscribe = dest => {
+  subscribe = (dest) => {
     const { alertId } = this.props;
 
     const sub = { alert_id: alertId };
@@ -145,7 +150,7 @@ export default class AlertDestinations extends React.Component {
       sub.destination_id = dest.id;
     }
 
-    return AlertSubscription.create(sub).then(sub => {
+    return AlertSubscription.create(sub).then((sub) => {
       const { subs } = this.state;
       this.setState({
         subs: [...subs, normalizeSub(sub)],
@@ -153,7 +158,7 @@ export default class AlertDestinations extends React.Component {
     });
   };
 
-  unsubscribe = sub => {
+  unsubscribe = (sub) => {
     AlertSubscription.delete(sub)
       .then(() => {
         // not showing subscribe notification cause it's redundant here
@@ -188,13 +193,14 @@ export default class AlertDestinations extends React.Component {
             type="primary"
             size="small"
             className="add-button"
-            onClick={this.showAddAlertSubDialog}>
-            <i className="fa fa-plus f-12 m-r-5" /> Add
+            onClick={this.showAddAlertSubDialog}
+          >
+            <i className="fa fa-plus f-12 m-r-5" aria-hidden="true" /> Add
           </Button>
         </Tooltip>
         <ul>
           <li className="destination-wrapper">
-            <i className="destination-icon fa fa-envelope" />
+            <i className="destination-icon fa fa-envelope" aria-hidden="true" />
             <span className="flex-fill">{currentUser.email}</span>
             <EmailSettingsWarning className="destination-warning" featureName="alert emails" mode="icon" />
             {!mailSettingsMissing && (
@@ -208,7 +214,7 @@ export default class AlertDestinations extends React.Component {
               />
             )}
           </li>
-          {filteredSubs.map(s => (
+          {filteredSubs.map((s) => (
             <ListItem key={s.id} unsubscribe={() => this.unsubscribe(s)} {...s} />
           ))}
         </ul>

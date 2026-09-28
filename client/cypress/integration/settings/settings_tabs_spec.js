@@ -1,5 +1,3 @@
-import { createUser } from "../../support/redash-api";
-
 describe("Settings Tabs", () => {
   const regularUser = {
     name: "Example User",
@@ -8,16 +6,16 @@ describe("Settings Tabs", () => {
   };
 
   const userTabs = ["Users", "Groups", "Query Snippets", "Account"];
-  const adminTabs = ["Data Sources", "Alert Destinations", "Settings"];
+  const adminTabs = ["Data Sources", "Alert Destinations", "General"];
 
-  const expectSettingsTabsToBe = expectedTabs =>
-    cy.getByTestId("SettingsScreenItem").then($list => {
-      const listedPages = $list.toArray().map(el => el.text);
+  const expectSettingsTabsToBe = (expectedTabs) =>
+    cy.getByTestId("SettingsScreenItem").then(($list) => {
+      const listedPages = $list.toArray().map((el) => el.text);
       expect(listedPages).to.have.members(expectedTabs);
     });
 
   before(() => {
-    cy.login().then(() => createUser(regularUser));
+    cy.login().then(() => cy.createUser(regularUser));
   });
 
   describe("For admin user", () => {
@@ -28,9 +26,7 @@ describe("Settings Tabs", () => {
     });
 
     it("settings link should lead to Data Sources settings", () => {
-      cy.getByTestId("SettingsLink")
-        .should("exist")
-        .should("have.attr", "href", "data_sources");
+      cy.getByTestId("SettingsLink").should("exist").should("have.attr", "href", "data_sources");
     });
 
     it("all tabs should be available", () => {
@@ -47,9 +43,7 @@ describe("Settings Tabs", () => {
     });
 
     it("settings link should lead to Users settings", () => {
-      cy.getByTestId("SettingsLink")
-        .should("exist")
-        .should("have.attr", "href", "users");
+      cy.getByTestId("SettingsLink").should("exist").should("have.attr", "href", "users");
     });
 
     it("limited set of settings tabs should be available", () => {

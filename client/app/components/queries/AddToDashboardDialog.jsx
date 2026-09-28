@@ -4,7 +4,9 @@ import PropTypes from "prop-types";
 import Modal from "antd/lib/modal";
 import Input from "antd/lib/input";
 import List from "antd/lib/list";
-import Icon from "antd/lib/icon";
+import Link from "@/components/Link";
+import PlainButton from "@/components/PlainButton";
+import CloseOutlinedIcon from "@ant-design/icons/CloseOutlined";
 import { wrap as wrapDialog, DialogPropType } from "@/components/DialogWrapper";
 import { QueryTagsControl } from "@/components/tags-control/TagsControl";
 import { Dashboard } from "@/services/dashboard";
@@ -17,10 +19,10 @@ function AddToDashboardDialog({ dialog, visualization }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [doSearch, dashboards, isLoading] = useSearchResults(
-    term => {
+    (term) => {
       if (isString(term) && term !== "") {
         return Dashboard.query({ q: term })
-          .then(results => results.results)
+          .then((results) => results.results)
           .catch(() => []);
       }
       return Promise.resolve([]);
@@ -39,21 +41,19 @@ function AddToDashboardDialog({ dialog, visualization }) {
   function addWidgetToDashboard() {
     // Load dashboard with all widgets
     Dashboard.get(selectedDashboard)
-      .then(dashboard => {
+      .then((dashboard) => {
         dashboard.addWidget(visualization);
         return dashboard;
       })
-      .then(dashboard => {
+      .then((dashboard) => {
         dialog.close();
-        const key = `notification-${Math.random()
-          .toString(36)
-          .substr(2, 10)}`;
+        const key = `notification-${Math.random().toString(36).substr(2, 10)}`;
         notification.success(
           "Widget added to dashboard",
           <React.Fragment>
-            <a href={`${dashboard.url}`} onClick={() => notification.close(key)}>
+            <Link href={`${dashboard.url}`} onClick={() => notification.close(key)}>
               {dashboard.name}
-            </a>
+            </Link>
             <QueryTagsControl isDraft={dashboard.is_draft} tags={dashboard.tags} />
           </React.Fragment>,
           { key }
@@ -75,7 +75,8 @@ function AddToDashboardDialog({ dialog, visualization }) {
       title="Add to Dashboard"
       okButtonProps={{ disabled: !selectedDashboard || saveInProgress, loading: saveInProgress }}
       cancelButtonProps={{ disabled: saveInProgress }}
-      onOk={addWidgetToDashboard}>
+      onOk={addWidgetToDashboard}
+    >
       <label htmlFor="add-to-dashboard-dialog-dashboard">Choose the dashboard to add this query to:</label>
 
       {!selectedDashboard && (
@@ -86,9 +87,11 @@ function AddToDashboardDialog({ dialog, visualization }) {
           autoFocus
           placeholder="Search a dashboard by name"
           value={searchTerm}
-          onChange={event => setSearchTerm(event.target.value)}
+          onChange={(event) => setSearchTerm(event.target.value)}
           suffix={
-            <Icon type="close" className={searchTerm === "" ? "hidden" : null} onClick={() => setSearchTerm("")} />
+            <PlainButton className={searchTerm === "" ? "hidden" : null} onClick={() => setSearchTerm("")}>
+              <CloseOutlinedIcon />
+            </PlainButton>
           }
         />
       )}
@@ -100,11 +103,20 @@ function AddToDashboardDialog({ dialog, visualization }) {
           itemLayout="horizontal"
           loading={isLoading}
           dataSource={items}
-          renderItem={d => (
+          renderItem={(d) => (
             <List.Item
               key={`dashboard-${d.id}`}
-              actions={selectedDashboard ? [<Icon type="close" onClick={() => setSelectedDashboard(null)} />] : []}
-              onClick={selectedDashboard ? null : () => setSelectedDashboard(d)}>
+              actions={
+                selectedDashboard
+                  ? [
+                      <PlainButton onClick={() => setSelectedDashboard(null)}>
+                        <CloseOutlinedIcon />
+                      </PlainButton>,
+                    ]
+                  : []
+              }
+              onClick={selectedDashboard ? null : () => setSelectedDashboard(d)}
+            >
               <div className="add-to-dashboard-dialog-item-content">
                 {d.name}
                 <QueryTagsControl isDraft={d.is_draft} tags={d.tags} />

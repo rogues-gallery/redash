@@ -3,6 +3,7 @@ import React from "react";
 import PropTypes from "prop-types";
 
 import routeWithApiKeySession from "@/components/ApplicationArea/routeWithApiKeySession";
+import Link from "@/components/Link";
 import BigMessage from "@/components/BigMessage";
 import PageHeader from "@/components/PageHeader";
 import Parameters from "@/components/Parameters";
@@ -19,9 +20,8 @@ import useDashboard from "./hooks/useDashboard";
 import "./PublicDashboardPage.less";
 
 function PublicDashboard({ dashboard }) {
-  const { globalParameters, filters, setFilters, refreshDashboard, loadWidget, refreshWidget } = useDashboard(
-    dashboard
-  );
+  const { globalParameters, filters, setFilters, refreshDashboard, loadWidget, refreshWidget } =
+    useDashboard(dashboard);
 
   return (
     <div className="container p-t-10 p-b-20">
@@ -72,8 +72,8 @@ class PublicDashboardPage extends React.Component {
 
   componentDidMount() {
     Dashboard.getByToken({ token: this.props.token })
-      .then(dashboard => this.setState({ dashboard, loading: false }))
-      .catch(error => this.props.onError(error));
+      .then((dashboard) => this.setState({ dashboard, loading: false }))
+      .catch((error) => this.props.onError(error));
   }
 
   render() {
@@ -89,11 +89,11 @@ class PublicDashboardPage extends React.Component {
         )}
         <div id="footer">
           <div className="text-center">
-            <a href="https://redash.io">
+            <Link href="https://redash.io">
               <img alt="Redash Logo" src={logoUrl} width="38" />
-            </a>
+            </Link>
           </div>
-          Powered by <a href="https://redash.io/?ref=public-dashboard">Redash</a>
+          Powered by <Link href="https://redash.io/?ref=public-dashboard">Redash</Link>
         </div>
       </div>
     );
@@ -104,7 +104,7 @@ routes.register(
   "Dashboards.ViewShared",
   routeWithApiKeySession({
     path: "/public/dashboards/:token",
-    render: pageProps => <PublicDashboardPage {...pageProps} />,
-    getApiKey: currentRoute => currentRoute.routeParams.token,
+    render: (pageProps) => <PublicDashboardPage {...pageProps} />,
+    getApiKey: (currentRoute) => currentRoute.routeParams.token,
   })
 );

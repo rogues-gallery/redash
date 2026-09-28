@@ -1,6 +1,4 @@
-/* global cy, Cypress */
-
-import { createQuery } from "../../support/redash-api";
+/* global cy */
 
 const SQL = `
   SELECT 'a.01' AS a, 1.758831600227 AS b UNION ALL
@@ -21,12 +19,11 @@ const SQL = `
 `;
 
 describe("Funnel", () => {
-  const viewportWidth = Cypress.config("viewportWidth");
-
   beforeEach(() => {
     cy.login();
-    createQuery({ query: SQL }).then(({ id }) => {
+    cy.createQuery({ query: SQL }).then(({ id }) => {
       cy.visit(`queries/${id}/source`);
+      cy.wait(1500); // eslint-disable-line cypress/no-unnecessary-waiting
       cy.getByTestId("ExecuteButton").click();
     });
   });
@@ -34,10 +31,8 @@ describe("Funnel", () => {
   it("creates visualization", () => {
     cy.clickThrough(`
       NewVisualization
-      VisualizationType
-      VisualizationType.FUNNEL
     `);
-
+    cy.getByTestId("VisualizationType").selectAntdOption("VisualizationType.FUNNEL");
     cy.clickThrough(`
       VisualizationEditor.Tabs.General
 
@@ -63,10 +58,7 @@ describe("Funnel", () => {
 
     // Wait for proper initialization of visualization
     cy.wait(500); // eslint-disable-line cypress/no-unnecessary-waiting
-    cy.getByTestId("VisualizationPreview")
-      .find("table")
-      .should("exist");
-    cy.percySnapshot("Visualizations - Funnel (basic)", { widths: [viewportWidth] });
+    cy.getByTestId("VisualizationPreview").find("table").should("exist");
 
     cy.clickThrough(`
       VisualizationEditor.Tabs.Appearance
@@ -85,9 +77,6 @@ describe("Funnel", () => {
 
     // Wait for proper initialization of visualization
     cy.wait(500); // eslint-disable-line cypress/no-unnecessary-waiting
-    cy.getByTestId("VisualizationPreview")
-      .find("table")
-      .should("exist");
-    cy.percySnapshot("Visualizations - Funnel (extra options)", { widths: [viewportWidth] });
+    cy.getByTestId("VisualizationPreview").find("table").should("exist");
   });
 });

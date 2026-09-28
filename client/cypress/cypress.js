@@ -1,102 +1,126 @@
-/* eslint-disable import/no-extraneous-dependencies, no-console */
-const atob = require("atob");
+/* eslint-disable no-console, compat/compat -- a Node.js script, not browser code */
 const { execSync } = require("child_process");
-const { post } = require("request").defaults({ jar: true });
 const { seedData } = require("./seed-data");
+const fs = require("fs");
 
-const baseUrl = process.env.CYPRESS_baseUrl || "http://localhost:5000";
+let cypressConfigBaseUrl;
+try {
+  const cypressConfig = JSON.parse(fs.readFileSync("cypress.json"));
+  cypressConfigBaseUrl = cypressConfig.baseUrl;
+} catch (e) {}
 
-function seedDatabase(seedValues) {
-  const request = seedValues.shift();
-  const data = request.type === "form" ? { formData: request.data } : { json: request.data };
+const baseUrl = process.env.CYPRESS_baseUrl || cypressConfigBaseUrl || "http://localhost:5001";
 
-  post(baseUrl + request.route, data, (err, response) => {
-    const result = response ? response.statusCode : err;
-    console.log("POST " + request.route + " - " + result);
-    if (seedValues.length) {
-      seedDatabase(seedValues);
+// Minimal cookie jar: the seed requests share one session (setup, then login, then API calls)
+const cookies = {};
+
+async function request(method, route, { headers = {}, body } = {}) {
+  const cookie = Object.entries(cookies)
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+  const response = await fetch(baseUrl + route, { method, body, headers: { ...headers, cookie }, redirect: "manual" });
+  for (const setCookie of response.headers.getSetCookie()) {
+    const [pair] = setCookie.split(";");
+    const separator = pair.indexOf("=");
+    cookies[pair.slice(0, separator).trim()] = pair.slice(separator + 1);
+  }
+  return response;
+}
+
+async function seedDatabase(seedValues) {
+  // Errors fail the command: tests shouldn't run against an unseeded server
+  for (const { route, type, data } of seedValues) {
+    await request("GET", "/login"); // refreshes the CSRF cookie
+    const csrfToken = cookies.csrf_token;
+    const response =
+      type === "form"
+        ? await request("POST", route, { body: new URLSearchParams({ ...data, csrf_token: csrfToken }) })
+        : await request("POST", route, {
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+            body: JSON.stringify(data),
+          });
+    console.log("POST " + route + " - " + response.status);
+    // Not `response.ok`: the setup and login forms respond with redirects
+    if (response.status >= 400) {
+      throw new Error("Seeding failed: POST " + route + " returned " + response.status);
     }
-  });
+  }
 }
 
 function buildServer() {
   console.log("Building the server...");
-  execSync("docker-compose -p cypress build --build-arg skip_dev_deps=true --build-arg skip_ds_deps=true", {
-    stdio: "inherit",
-  });
+  execSync("docker compose -p cypress build", { stdio: "inherit" });
 }
 
 function startServer() {
   console.log("Starting the server...");
-  execSync("docker-compose -p cypress up -d", { stdio: "inherit" });
-  execSync("docker-compose -p cypress run server create_db", { stdio: "inherit" });
+  execSync("docker compose -p cypress up -d", { stdio: "inherit" });
+  execSync("docker compose -p cypress run server create_db", { stdio: "inherit" });
 }
 
 function stopServer() {
   console.log("Stopping the server...");
-  execSync("docker-compose -p cypress down", { stdio: "inherit" });
+  execSync("docker compose -p cypress down", { stdio: "inherit" });
 }
 
 function runCypressCI() {
   const {
-    PERCY_TOKEN_ENCODED,
-    CYPRESS_PROJECT_ID_ENCODED,
-    CYPRESS_RECORD_KEY_ENCODED,
-    CIRCLE_REPOSITORY_URL,
+    GITHUB_REPOSITORY,
+    CYPRESS_OPTIONS, // eslint-disable-line no-unused-vars
   } = process.env;
 
-  if (CIRCLE_REPOSITORY_URL && CIRCLE_REPOSITORY_URL.includes("getredash/redash")) {
-    if (PERCY_TOKEN_ENCODED) {
-      process.env.PERCY_TOKEN = atob(`${PERCY_TOKEN_ENCODED}`);
-    }
-    if (CYPRESS_PROJECT_ID_ENCODED) {
-      process.env.CYPRESS_PROJECT_ID = atob(`${CYPRESS_PROJECT_ID_ENCODED}`);
-    }
-    if (CYPRESS_RECORD_KEY_ENCODED) {
-      process.env.CYPRESS_RECORD_KEY = atob(`${CYPRESS_RECORD_KEY_ENCODED}`);
-    }
+  if (GITHUB_REPOSITORY === "getredash/redash" && process.env.CYPRESS_RECORD_KEY) {
+    process.env.CYPRESS_OPTIONS = "--record";
   }
 
   execSync(
-    "COMMIT_INFO_MESSAGE=$(git show -s --format=%s) docker-compose run cypress ./node_modules/.bin/percy exec -t 300 -- ./node_modules/.bin/cypress run --record",
+    "COMMIT_INFO_MESSAGE=$(git show -s --format=%s) docker compose run --name cypress cypress ./node_modules/.bin/cypress run $CYPRESS_OPTIONS",
     { stdio: "inherit" }
   );
 }
 
-const command = process.argv[2] || "all";
-
-switch (command) {
-  case "build":
-    buildServer();
-    break;
-  case "start":
-    startServer();
-    if (!process.argv.includes("--skip-db-seed")) {
-      seedDatabase(seedData);
-    }
-    break;
-  case "db-seed":
-    seedDatabase(seedData);
-    break;
-  case "run":
-    execSync("cypress run", { stdio: "inherit" });
-    break;
-  case "open":
-    execSync("cypress open", { stdio: "inherit" });
-    break;
-  case "run-ci":
-    runCypressCI();
-    break;
-  case "stop":
-    stopServer();
-    break;
-  case "all":
-    startServer();
-    seedDatabase(seedData);
-    execSync("cypress run", { stdio: "inherit" });
-    stopServer();
-    break;
-  default:
-    console.log("Usage: npm run cypress [build|start|db-seed|open|run|stop]");
-    break;
+async function main(command) {
+  switch (command) {
+    case "build":
+      buildServer();
+      break;
+    case "start":
+      startServer();
+      if (!process.argv.includes("--skip-db-seed")) {
+        await seedDatabase(seedData);
+      }
+      break;
+    case "db-seed":
+      await seedDatabase(seedData);
+      break;
+    case "run":
+      execSync("cypress run", { stdio: "inherit" });
+      break;
+    case "open":
+      execSync("cypress open", { stdio: "inherit" });
+      break;
+    case "run-ci":
+      runCypressCI();
+      break;
+    case "stop":
+      stopServer();
+      break;
+    case "all":
+      try {
+        startServer();
+        await seedDatabase(seedData);
+        execSync("cypress run", { stdio: "inherit" });
+      } finally {
+        stopServer();
+      }
+      break;
+    default:
+      console.log("Usage: pnpm run cypress [build|start|db-seed|open|run|stop]");
+      break;
+  }
 }
+
+main(process.argv[2] || "all").catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

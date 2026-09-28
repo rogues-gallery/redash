@@ -8,14 +8,17 @@ import { MappingType, ParameterMappingListInput } from "@/components/ParameterMa
 import QuerySelector from "@/components/QuerySelector";
 import notification from "@/services/notification";
 import { Query } from "@/services/query";
+import { useUniqueId } from "@/lib/hooks/useUniqueId";
 
 function VisualizationSelect({ query, visualization, onChange }) {
   const visualizationGroups = useMemo(() => {
     return query ? groupBy(query.visualizations, "type") : {};
   }, [query]);
 
+  const vizSelectId = useUniqueId("visualization-select");
+
   const handleChange = useCallback(
-    visualizationId => {
+    (visualizationId) => {
       const selectedVisualization = query ? find(query.visualizations, { id: visualizationId }) : null;
       onChange(selectedVisualization || null);
     },
@@ -29,15 +32,16 @@ function VisualizationSelect({ query, visualization, onChange }) {
   return (
     <div>
       <div className="form-group">
-        <label htmlFor="choose-visualization">Choose Visualization</label>
+        <label htmlFor={vizSelectId}>Choose Visualization</label>
         <Select
-          id="choose-visualization"
+          id={vizSelectId}
           className="w-100"
           value={visualization ? visualization.id : undefined}
-          onChange={handleChange}>
+          onChange={handleChange}
+        >
           {map(visualizationGroups, (visualizations, groupKey) => (
             <Select.OptGroup key={groupKey} label={groupKey}>
-              {map(visualizations, visualization => (
+              {map(visualizations, (visualization) => (
                 <Select.Option key={`${visualization.id}`} value={visualization.id}>
                   {visualization.name}
                 </Select.Option>
@@ -68,19 +72,19 @@ function AddWidgetDialog({ dialog, dashboard }) {
   const [parameterMappings, setParameterMappings] = useState([]);
 
   const selectQuery = useCallback(
-    queryId => {
+    (queryId) => {
       // Clear previously selected query (if any)
       setSelectedQuery(null);
       setSelectedVisualization(null);
       setParameterMappings([]);
 
       if (queryId) {
-        Query.get({ id: queryId }).then(query => {
+        Query.get({ id: queryId }).then((query) => {
           if (query) {
-            const existingParamNames = map(dashboard.getParametersDefs(), param => param.name);
+            const existingParamNames = map(dashboard.getParametersDefs(), (param) => param.name);
             setSelectedQuery(query);
             setParameterMappings(
-              map(query.getParametersDefs(), param => ({
+              map(query.getParametersDefs(), (param) => ({
                 name: param.name,
                 type: includes(existingParamNames, param.name)
                   ? MappingType.DashboardMapToExisting
@@ -108,6 +112,7 @@ function AddWidgetDialog({ dialog, dashboard }) {
   }, [dialog, selectedVisualization, parameterMappings]);
 
   const existingParams = dashboard.getParametersDefs();
+  const parameterMappingsId = useUniqueId("parameter-mappings");
 
   return (
     <Modal
@@ -119,9 +124,10 @@ function AddWidgetDialog({ dialog, dashboard }) {
         disabled: !selectedQuery || dialog.props.okButtonProps.disabled,
       }}
       okText="Add to Dashboard"
-      width={700}>
+      width={700}
+    >
       <div data-test="AddWidgetDialog">
-        <QuerySelector onChange={query => selectQuery(query ? query.id : null)} />
+        <QuerySelector onChange={(query) => selectQuery(query ? query.id : null)} />
 
         {selectedQuery && (
           <VisualizationSelect
@@ -132,12 +138,12 @@ function AddWidgetDialog({ dialog, dashboard }) {
         )}
 
         {parameterMappings.length > 0 && [
-          <label key="parameters-title" htmlFor="parameter-mappings">
+          <label key="parameters-title" htmlFor={parameterMappingsId}>
             Parameters
           </label>,
           <ParameterMappingListInput
             key="parameters-list"
-            id="parameter-mappings"
+            id={parameterMappingsId}
             mappings={parameterMappings}
             existingParams={existingParams}
             onChange={setParameterMappings}

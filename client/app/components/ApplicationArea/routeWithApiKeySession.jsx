@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import PropTypes from "prop-types";
 import { ErrorBoundaryContext } from "@redash/viz/lib/components/ErrorBoundary";
-import { Auth } from "@/services/auth";
+import { Auth, clientConfig } from "@/services/auth";
 
 // This wrapper modifies `route.render` function and instead of passing `currentRoute` passes an object
 // that contains:
@@ -33,7 +33,7 @@ function ApiKeySessionWrapper({ apiKey, currentRoute, renderChildren }) {
     };
   }, [apiKey]);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || clientConfig.disablePublicUrls) {
     return null;
   }
 
@@ -56,7 +56,7 @@ ApiKeySessionWrapper.defaultProps = {
 export default function routeWithApiKeySession({ render, getApiKey, ...rest }) {
   return {
     ...rest,
-    render: currentRoute => (
+    render: (currentRoute) => (
       <ApiKeySessionWrapper apiKey={getApiKey(currentRoute)} currentRoute={currentRoute} renderChildren={render} />
     ),
   };

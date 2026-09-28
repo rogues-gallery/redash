@@ -5,12 +5,15 @@ module.exports = {
     "react-app",
     "plugin:compat/recommended",
     "prettier",
-    // Remove any typescript-eslint rules that would conflict with prettier
-    "prettier/@typescript-eslint",
+    "plugin:jsx-a11y/recommended",
   ],
-  plugins: ["jest", "compat", "no-only-tests", "@typescript-eslint"],
+  plugins: ["jest", "compat", "no-only-tests", "@typescript-eslint", "jsx-a11y"],
   settings: {
     "import/resolver": "webpack",
+    polyfills: [
+      "document.body",
+      "Notification",
+    ],
   },
   env: {
     browser: true,
@@ -19,7 +22,39 @@ module.exports = {
   rules: {
     // allow debugger during development
     "no-debugger": process.env.NODE_ENV === "production" ? 2 : 0,
-    "jsx-a11y/anchor-is-valid": "off",
+    // Pre-existing patterns - anonymous default exports are used throughout
+    "import/no-anonymous-default-export": "off",
+    // Some tests verify no-throw behavior without explicit assertions
+    "jest/expect-expect": "off",
+    "jsx-a11y/anchor-is-valid": [
+      // TMP
+      "off",
+      {
+        components: ["Link"],
+        aspects: ["noHref", "invalidHref", "preferButton"],
+      },
+    ],
+    "jsx-a11y/no-redundant-roles": "error",
+    "jsx-a11y/no-autofocus": "off",
+    "jsx-a11y/click-events-have-key-events": "off", // TMP
+    "jsx-a11y/no-static-element-interactions": "off", // TMP
+    "jsx-a11y/no-noninteractive-element-interactions": "off", // TMP
+    "no-console": ["warn", { allow: ["warn", "error"] }],
+    "no-restricted-imports": [
+      "error",
+      {
+        paths: [
+          {
+            name: "antd",
+            message: "Please use 'import XXX from antd/lib/XXX' import instead.",
+          },
+          {
+            name: "antd/lib",
+            message: "Please use 'import XXX from antd/lib/XXX' import instead.",
+          },
+        ],
+      },
+    ],
   },
   overrides: [
     {
@@ -34,6 +69,26 @@ module.exports = {
         // Do not complain about useless contructors in declaration files
         "no-useless-constructor": "off",
         "@typescript-eslint/no-useless-constructor": "error",
+        // Many API fields and generated types use camelcase
+        camelcase: "off",
+        // Allow {} type - used extensively in existing codebase
+        "@typescript-eslint/ban-types": ["error", { types: { "{}": false } }],
+      },
+    },
+    {
+      // Cypress test files
+      files: ["**/cypress/**/*.js"],
+      extends: ["plugin:cypress/recommended"],
+      plugins: ["cypress", "chai-friendly"],
+      env: {
+        "cypress/globals": true,
+      },
+      rules: {
+        "no-redeclare": "off",
+        "cypress/unsafe-to-chain-command": "off",
+        "func-names": ["error", "never"],
+        "no-unused-expressions": "off",
+        "chai-friendly/no-unused-expressions": "error",
       },
     },
   ],

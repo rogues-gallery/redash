@@ -1,3 +1,4 @@
+import { uniqueId } from "lodash";
 import React from "react";
 import PropTypes from "prop-types";
 import Alert from "antd/lib/alert";
@@ -9,6 +10,7 @@ import Modal from "antd/lib/modal";
 import { wrap as wrapDialog, DialogPropType } from "@/components/DialogWrapper";
 import { clientConfig } from "@/services/auth";
 import CodeBlock from "@/components/CodeBlock";
+
 import "./EmbedQueryDialog.less";
 
 class EmbedQueryDialog extends React.Component {
@@ -36,6 +38,9 @@ class EmbedQueryDialog extends React.Component {
     }
   }
 
+  urlEmbedLabelId = uniqueId("url-embed-label");
+  iframeEmbedLabelId = uniqueId("iframe-embed-label");
+
   render() {
     const { query, dialog } = this.props;
     const { enableChangeIframeSize, iframeWidth, iframeHeight } = this.state;
@@ -45,32 +50,37 @@ class EmbedQueryDialog extends React.Component {
         {...dialog.props}
         className="embed-query-dialog"
         title="Embed Query"
-        footer={<Button onClick={dialog.dismiss}>Close</Button>}>
+        footer={<Button onClick={dialog.dismiss}>Close</Button>}
+      >
         {query.is_safe ? (
           <React.Fragment>
-            <h5 className="m-t-0">Public URL</h5>
+            <h5 id={this.urlEmbedLabelId} className="m-t-0">
+              Public URL
+            </h5>
             <div className="m-b-30">
-              <CodeBlock data-test="EmbedIframe" copyable>
+              <CodeBlock aria-labelledby={this.urlEmbedLabelId} data-test="EmbedIframe" copyable>
                 {this.embedUrl}
               </CodeBlock>
             </div>
-            <h5 className="m-t-0">IFrame Embed</h5>
+            <h5 id={this.iframeEmbedLabelId} className="m-t-0">
+              IFrame Embed
+            </h5>
             <div>
-              <CodeBlock copyable>
+              <CodeBlock aria-labelledby={this.iframeEmbedLabelId} copyable>
                 {`<iframe src="${this.embedUrl}" width="${iframeWidth}" height="${iframeHeight}"></iframe>`}
               </CodeBlock>
               <Form className="m-t-10" layout="inline">
                 <Form.Item>
                   <Checkbox
                     checked={enableChangeIframeSize}
-                    onChange={e => this.setState({ enableChangeIframeSize: e.target.checked })}
+                    onChange={(e) => this.setState({ enableChangeIframeSize: e.target.checked })}
                   />
                 </Form.Item>
                 <Form.Item label="Width">
                   <InputNumber
                     className="size-input"
                     value={iframeWidth}
-                    onChange={value => this.setState({ iframeWidth: value })}
+                    onChange={(value) => this.setState({ iframeWidth: value })}
                     size="small"
                     disabled={!enableChangeIframeSize}
                   />
@@ -79,7 +89,7 @@ class EmbedQueryDialog extends React.Component {
                   <InputNumber
                     className="size-input"
                     value={iframeHeight}
-                    onChange={value => this.setState({ iframeHeight: value })}
+                    onChange={(value) => this.setState({ iframeHeight: value })}
                     size="small"
                     disabled={!enableChangeIframeSize}
                   />

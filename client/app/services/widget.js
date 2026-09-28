@@ -1,6 +1,21 @@
 import moment from "moment";
 import { axios } from "@/services/axios";
-import { each, pick, extend, isObject, truncate, keys, difference, filter, map, merge } from "lodash";
+import {
+  each,
+  pick,
+  extend,
+  isObject,
+  truncate,
+  keys,
+  difference,
+  filter,
+  map,
+  merge,
+  sortBy,
+  indexOf,
+  size,
+  includes,
+} from "lodash";
 import location from "@/services/location";
 import { cloneParameter } from "@/services/parameters";
 import dashboardGridOptions from "@/config/dashboard-grid-options";
@@ -143,18 +158,24 @@ class Widget {
       if (maxAge === undefined || force) {
         maxAge = force ? 0 : undefined;
       }
-      this.queryResult = this.getQuery().getQueryResult(maxAge);
 
-      this.queryResult
+      const queryResult = this.getQuery().getQueryResult(maxAge);
+      this.queryResult = queryResult;
+
+      queryResult
         .toPromise()
-        .then(result => {
-          this.loading = false;
-          this.data = result;
+        .then((result) => {
+          if (this.queryResult === queryResult) {
+            this.loading = false;
+            this.data = result;
+          }
           return result;
         })
-        .catch(error => {
-          this.loading = false;
-          this.data = error;
+        .catch((error) => {
+          if (this.queryResult === queryResult) {
+            this.loading = false;
+            this.data = error;
+          }
           return error;
         });
     }
@@ -173,7 +194,7 @@ class Widget {
       url = `${url}/${this.id}`;
     }
 
-    return axios.post(url, data).then(data => {
+    return axios.post(url, data).then((data) => {
       each(data, (v, k) => {
         this[k] = v;
       });
@@ -201,9 +222,9 @@ class Widget {
     const queryParams = location.search;
 
     const localTypes = [Widget.MappingType.WidgetLevel, Widget.MappingType.StaticValue];
-    return map(
-      filter(params, param => localTypes.indexOf(mappings[param.name].type) >= 0),
-      param => {
+    const localParameters = map(
+      filter(params, (param) => localTypes.indexOf(mappings[param.name].type) >= 0),
+      (param) => {
         const mapping = mappings[param.name];
         const result = cloneParameter(param);
         result.title = mapping.title || param.title;
@@ -217,6 +238,13 @@ class Widget {
         return result;
       }
     );
+
+    // order widget params using paramOrder
+    return sortBy(localParameters, (param) =>
+      includes(this.options.paramOrder, param.name)
+        ? indexOf(this.options.paramOrder, param.name)
+        : size(this.options.paramOrder)
+    );
   }
 
   getParameterMappings() {
@@ -227,7 +255,7 @@ class Widget {
     const existingParams = {};
     // textboxes does not have query
     const params = this.getQuery() ? this.getQuery().getParametersDefs(false) : [];
-    each(params, param => {
+    each(params, (param) => {
       existingParams[param.name] = true;
       if (!isObject(this.options.parameterMappings[param.name])) {
         // "migration" for old dashboards: parameters with `global` flag
@@ -244,7 +272,7 @@ class Widget {
 
     // Remove mappings for parameters that do not exists anymore
     const removedParams = difference(keys(this.options.parameterMappings), keys(existingParams));
-    each(removedParams, name => {
+    each(removedParams, (name) => {
       delete this.options.parameterMappings[name];
     });
 
@@ -252,7 +280,7 @@ class Widget {
   }
 
   getLocalParameters() {
-    return filter(this.getParametersDefs(), param => !this.isStaticParam(param));
+    return filter(this.getParametersDefs(), (param) => !this.isStaticParam(param));
   }
 }
 

@@ -7,11 +7,12 @@ import List from "antd/lib/list";
 import Modal from "antd/lib/modal";
 import Select from "antd/lib/select";
 import Tag from "antd/lib/tag";
-import Tooltip from "antd/lib/tooltip";
+import Tooltip from "@/components/Tooltip";
 import { wrap as wrapDialog, DialogPropType } from "@/components/DialogWrapper";
 import { toHuman } from "@/lib/utils";
 import HelpTrigger from "@/components/HelpTrigger";
 import { UserPreviewCard } from "@/components/PreviewCard";
+import PlainButton from "@/components/PlainButton";
 import notification from "@/services/notification";
 import User from "@/services/user";
 
@@ -23,10 +24,10 @@ const DEBOUNCE_SEARCH_DURATION = 200;
 function useGrantees(url) {
   const loadGrantees = useCallback(
     () =>
-      axios.get(url).then(data => {
+      axios.get(url).then((data) => {
         const resultGrantees = [];
         each(data, (grantees, accessType) => {
-          grantees.forEach(grantee => {
+          grantees.forEach((grantee) => {
             grantee.accessType = toHuman(accessType);
             resultGrantees.push(grantee);
           });
@@ -55,7 +56,7 @@ function useGrantees(url) {
   return { loadGrantees, addPermission, removePermission };
 }
 
-const searchUsers = searchTerm =>
+const searchUsers = (searchTerm) =>
   User.query({ q: searchTerm })
     .then(({ results }) => results)
     .catch(() => []);
@@ -80,9 +81,10 @@ function UserSelect({ onSelect, shouldShowUser }) {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSearchUsers = useCallback(
     debounce(
-      search =>
+      (search) =>
         searchUsers(search)
           .then(setUsers)
           .finally(() => setLoadingUsers(false)),
@@ -102,13 +104,23 @@ function UserSelect({ onSelect, shouldShowUser }) {
       placeholder="Add users..."
       showSearch
       onSearch={setSearchTerm}
-      suffixIcon={loadingUsers ? <i className="fa fa-spinner fa-pulse" /> : <i className="fa fa-search" />}
+      suffixIcon={
+        loadingUsers ? (
+          <span role="status" aria-live="polite" aria-relevant="additions removals">
+            <i className="fa fa-spinner fa-pulse" aria-hidden="true" />
+            <span className="sr-only">Loading...</span>
+          </span>
+        ) : (
+          <i className="fa fa-search" aria-hidden="true" />
+        )
+      }
       filterOption={false}
       notFoundContent={null}
       value={undefined}
-      getPopupContainer={trigger => trigger.parentNode}
-      onSelect={onSelect}>
-      {users.filter(shouldShowUser).map(user => (
+      getPopupContainer={(trigger) => trigger.parentNode}
+      onSelect={onSelect}
+    >
+      {users.filter(shouldShowUser).map((user) => (
         <Option key={user.id} value={user.id}>
           <UserPreviewCard user={user} />
         </Option>
@@ -136,7 +148,7 @@ function PermissionsEditorDialog({ dialog, author, context, aclUrl }) {
   }, [loadGrantees]);
 
   const userHasPermission = useCallback(
-    user => user.id === author.id || !!get(find(grantees, { id: user.id }), "accessType"),
+    (user) => user.id === author.id || !!get(find(grantees, { id: user.id }), "accessType"),
     [author.id, grantees]
   );
 
@@ -149,30 +161,38 @@ function PermissionsEditorDialog({ dialog, author, context, aclUrl }) {
       {...dialog.props}
       className="permissions-editor-dialog"
       title={<PermissionsEditorDialogHeader context={context} />}
-      footer={<Button onClick={dialog.dismiss}>Close</Button>}>
+      footer={<Button onClick={dialog.dismiss}>Close</Button>}
+    >
       <UserSelect
-        onSelect={userId => addPermission(userId).then(loadUsersWithPermissions)}
-        shouldShowUser={user => !userHasPermission(user)}
+        onSelect={(userId) => addPermission(userId).then(loadUsersWithPermissions)}
+        shouldShowUser={(user) => !userHasPermission(user)}
       />
       <div className="d-flex align-items-center m-t-5">
         <h5 className="flex-fill">Users with permissions</h5>
-        {loadingGrantees && <i className="fa fa-spinner fa-pulse" />}
+        {loadingGrantees && (
+          <span role="status" aria-live="polite" aria-relevant="additions removals">
+            <i className="fa fa-spinner fa-pulse" aria-hidden="true" />
+            <span className="sr-only">Loading...</span>
+          </span>
+        )}
       </div>
       <div className="scrollbox p-5" style={{ maxHeight: "40vh" }}>
         <List
           size="small"
           dataSource={[author, ...grantees]}
-          renderItem={user => (
+          renderItem={(user) => (
             <List.Item>
               <UserPreviewCard key={user.id} user={user}>
                 {user.id === author.id ? (
                   <Tag className="m-0">Author</Tag>
                 ) : (
                   <Tooltip title="Remove user permissions">
-                    <i
-                      className="fa fa-remove clickable"
+                    <PlainButton
+                      aria-label="Remove permissions"
                       onClick={() => removePermission(user.id).then(loadUsersWithPermissions)}
-                    />
+                    >
+                      <i className="fa fa-remove clickable" aria-hidden="true" />
+                    </PlainButton>
                   </Tooltip>
                 )}
               </UserPreviewCard>
